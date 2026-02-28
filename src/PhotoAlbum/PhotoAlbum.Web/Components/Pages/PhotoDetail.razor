@@ -1,0 +1,96 @@
+@page "/photos/{Id:guid}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using PhotoAlbum.Web.Services
+@inject PhotoService PhotoService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize]
+
+<PageTitle>Photo Detail</PageTitle>
+
+@if (isLoading)
+{
+    <p>Loading photo...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (photo is null)
+{
+    <p>Photo not found.</p>
+}
+else
+{
+    <h1>@photo.Name</h1>
+    <p>Uploaded: @photo.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm")</p>
+    <img src="@photo.ImageUrl" alt="@photo.Name" style="max-width: 100%; height: auto;" />
+
+    @if (photo.CanDelete)
+    {
+        <div class="mt-3">
+            <button class="btn btn-danger" @onclick="DeleteAsync">Delete</button>
+            <a class="btn btn-secondary ms-2" href="/photos">Back</a>
+        </div>
+    }
+    else
+    {
+        <div class="mt-3">
+            <a class="btn btn-secondary" href="/photos">Back</a>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private PhotoDetailItem? photo;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+        photo = await PhotoService.GetByIdAsync(Id, userId);
+
+        if (photo is null)
+        {
+            errorMessage = "Photo not found.";
+        }
+
+        isLoading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            errorMessage = "You must be logged in to delete photos.";
+            return;
+        }
+
+        var result = await PhotoService.DeleteAsync(Id, userId);
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        NavigationManager.NavigateTo("/photos");
+    }
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+}
