@@ -98,7 +98,7 @@ public class PhotoService(ApplicationDbContext dbContext, IPhotoStorage photoSto
         }
 
         var extension = Path.GetExtension(request.FileName);
-        var blobName = await photoStorage.SaveAsync(request.Content, extension, cancellationToken);
+        var blobName = await photoStorage.SaveAsync(request.Content, extension, request.ContentType, cancellationToken);
 
         var entity = new Photo
         {

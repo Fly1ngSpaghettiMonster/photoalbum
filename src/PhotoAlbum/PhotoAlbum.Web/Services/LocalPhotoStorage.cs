@@ -6,7 +6,7 @@ public class LocalPhotoStorage(IWebHostEnvironment environment) : IPhotoStorage
 {
     private const string UploadsFolderName = "uploads";
 
-    public async Task<string> SaveAsync(Stream content, string fileExtension, CancellationToken cancellationToken = default)
+    public async Task<string> SaveAsync(Stream content, string fileExtension, string contentType, CancellationToken cancellationToken = default)
     {
         var uploadsPath = EnsureUploadsFolder();
         var safeExtension = NormalizeExtension(fileExtension);

@@ -39,7 +39,18 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<PhotoService>();
-builder.Services.AddScoped<IPhotoStorage, LocalPhotoStorage>();
+
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+
+var storageProvider = builder.Configuration[$"{StorageOptions.SectionName}:Provider"];
+if (string.Equals(storageProvider, "AzureBlob", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IPhotoStorage, AzureBlobPhotoStorage>();
+}
+else
+{
+    builder.Services.AddScoped<IPhotoStorage, LocalPhotoStorage>();
+}
 
 var app = builder.Build();
 
