@@ -1,0 +1,39 @@
+# Build
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Test results
+TestResults/
+*.trx
+
+# Logs
+*.log
+
+# NuGet
+*.nupkg
+packages/
+
+# Publish output
+publish/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local secrets/config
+appsettings.Development.json
+secrets.json
