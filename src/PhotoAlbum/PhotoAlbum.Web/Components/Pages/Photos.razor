@@ -1,0 +1,229 @@
+@page "/photos"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using PhotoAlbum.Web.Services
+@inject PhotoService PhotoService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@attribute [Authorize]
+
+<PageTitle>Photos</PageTitle>
+
+<h1>Photos</h1>
+
+<div class="mb-3 d-flex gap-3 align-items-end flex-wrap">
+    <div>
+        <label class="form-label" for="sortBy">Sort by</label>
+        <select id="sortBy" class="form-select" @bind="sortBy" @bind:after="ReloadAsync">
+            <option value="@PhotoSortBy.Date">Date</option>
+            <option value="@PhotoSortBy.Name">Name</option>
+        </select>
+    </div>
+    <div>
+        <label class="form-label" for="sortDirection">Direction</label>
+        <select id="sortDirection" class="form-select" @bind="ascending" @bind:after="ReloadAsync">
+            <option value="false">Descending</option>
+            <option value="true">Ascending</option>
+        </select>
+    </div>
+</div>
+
+<div class="border rounded p-3 mb-4">
+    <h4>Upload Photo</h4>
+    <div class="mb-2">
+        <label class="form-label" for="photoName">Name</label>
+        <input id="photoName" class="form-control" @bind="newPhotoName" maxlength="40" />
+        <small class="text-muted">Max 40 characters</small>
+    </div>
+    <div class="mb-2">
+        <InputFile OnChange="OnFileSelected" accept="image/jpeg,image/png,image/webp" />
+    </div>
+    <button class="btn btn-primary" type="button" @onclick="UploadAsync" disabled="@isUploading">@(isUploading ? "Uploading..." : "Upload")</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading photos...</p>
+}
+else if (photos.Count == 0)
+{
+    @if (!isAuthenticated)
+    {
+        <p><a href="Account/Login">Log in</a> to view your photos.</p>
+    }
+    else
+    {
+        <p>You have not uploaded any photos yet.</p>
+    }
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var photo in photos)
+            {
+                <tr>
+                    <td>
+                        <a href="@($"/photos/{photo.Id}")">@photo.Name</a>
+                    </td>
+                    <td>@photo.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>
+                        @if (photo.CanDelete)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(photo.Id)">Delete</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
+
+    private readonly List<PhotoListItem> photos = [];
+    private PhotoSortBy sortBy = PhotoSortBy.Date;
+    private bool ascending;
+    private string newPhotoName = string.Empty;
+    private IBrowserFile? selectedFile;
+    private bool isAuthenticated;
+    private bool isLoading = true;
+    private bool isUploading;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+        isAuthenticated = !string.IsNullOrWhiteSpace(userId);
+        var items = await PhotoService.GetListAsync(userId, sortBy, ascending);
+
+        photos.Clear();
+        photos.AddRange(items);
+        isLoading = false;
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs eventArgs)
+    {
+        selectedFile = eventArgs.File;
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (selectedFile is null)
+        {
+            errorMessage = "Select an image file first.";
+            return;
+        }
+
+        var userId = await GetCurrentUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            errorMessage = "You must be logged in to upload.";
+            return;
+        }
+
+        if (selectedFile.Size > MaxUploadBytes)
+        {
+            errorMessage = "File size exceeds 10 MB limit.";
+            return;
+        }
+
+        isUploading = true;
+
+        OperationResult result;
+
+        try
+        {
+            await using var stream = selectedFile.OpenReadStream(MaxUploadBytes);
+            var request = new UploadPhotoRequest(newPhotoName, selectedFile.Name, selectedFile.ContentType, selectedFile.Size, stream);
+            result = await PhotoService.UploadAsync(request, userId);
+        }
+        catch (IOException)
+        {
+            errorMessage = "Could not read the selected file. Please try a smaller file (max 10 MB).";
+            isUploading = false;
+            return;
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unexpected upload error. Please try again.";
+            isUploading = false;
+            return;
+        }
+
+        isUploading = false;
+
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        newPhotoName = string.Empty;
+        selectedFile = null;
+        successMessage = "Photo uploaded.";
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(Guid photoId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            errorMessage = "You must be logged in to delete photos.";
+            return;
+        }
+
+        var result = await PhotoService.DeleteAsync(photoId, userId);
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        successMessage = "Photo deleted.";
+        await ReloadAsync();
+    }
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+}
