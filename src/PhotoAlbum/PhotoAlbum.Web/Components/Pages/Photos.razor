@@ -15,17 +15,17 @@
 <div class="mb-3 d-flex gap-3 align-items-end flex-wrap">
     <div>
         <label class="form-label" for="sortBy">Sort by</label>
-        <select id="sortBy" class="form-select" @bind="sortBy" @bind:after="ReloadAsync">
+        <InputSelect id="sortBy" class="form-select" @bind-Value="sortBy" @bind-Value:after="ReloadAsync">
             <option value="@PhotoSortBy.Date">Date</option>
             <option value="@PhotoSortBy.Name">Name</option>
-        </select>
+        </InputSelect>
     </div>
     <div>
         <label class="form-label" for="sortDirection">Direction</label>
-        <select id="sortDirection" class="form-select" @bind="ascending" @bind:after="ReloadAsync">
+        <InputSelect id="sortDirection" class="form-select" @bind-Value="ascending" @bind-Value:after="ReloadAsync">
             <option value="false">Descending</option>
             <option value="true">Ascending</option>
-        </select>
+        </InputSelect>
     </div>
 </div>
 
@@ -102,7 +102,7 @@ else
 
     private readonly List<PhotoListItem> photos = [];
     private PhotoSortBy sortBy = PhotoSortBy.Date;
-    private bool ascending;
+    private bool ascending = false;
     private string newPhotoName = string.Empty;
     private IBrowserFile? selectedFile;
     private bool isAuthenticated;
